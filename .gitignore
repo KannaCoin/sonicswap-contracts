@@ -2,13 +2,17 @@ abi/
 artifacts/
 cache/
 coverage/
+after.js
 exports/
 node_modules/
 build/
+test/
+migrations/
 flatten/
 types/
 package-lock.json
 coverage.json
 .env
+.vscode/
 .DS_Store
 yarn-error.log

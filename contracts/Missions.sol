@@ -6,14 +6,14 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
-// The Pit is a pit full of creatures with a tendency to breed.
-// The longer you stay, the more creatures you end up with when you leave.
+// The Missions is a mission full of rewards and treasure.
+// The longer you stay, the more sonic you end up with when you leave.
 // This contract handles swapping to and from xGovernanceToken <> GovernanceToken
-contract Pit is ERC20 {
+contract Missions is ERC20 {
     using SafeMath for uint256;
     IERC20 public govToken;
 
-    // Define the Pit token contract
+    // Define the Missions token contract
     constructor(
       string memory _name,
       string memory _symbol,

@@ -2,22 +2,22 @@
 
 pragma solidity 0.6.12;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-import "@openzeppelin/contracts/utils/EnumerableSet.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "./GovernanceToken.sol";
-import "./Authorizable.sol";
+import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
+import '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
+import '@openzeppelin/contracts/utils/EnumerableSet.sol';
+import '@openzeppelin/contracts/math/SafeMath.sol';
+import '@openzeppelin/contracts/access/Ownable.sol';
+import '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
+import './GovernanceToken.sol';
+import './Authorizable.sol';
 
-// MasterBreeder is the master breeder of whatever creature the GovernanceToken represents.
+// MasterSonicer is the master sonicer of whatever sonic the GovernanceToken represents.
 //
 // Note that it's ownable and the owner wields tremendous power. The ownership
 // will be transferred to a governance smart contract once GovernanceToken is sufficiently
 // distributed and the community can show to govern itself.
 //
-contract MasterBreeder is Ownable, Authorizable, ReentrancyGuard {
+contract MasterSonicer is Ownable, Authorizable, ReentrancyGuard {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -92,6 +92,9 @@ contract MasterBreeder is Ownable, Authorizable, ReentrancyGuard {
     uint256 public PERCENT_FOR_COM; // community fund
     uint256 public PERCENT_FOR_FOUNDERS; // founders fund
 
+    bool public isPoolBurnEnabled = true; // if pool burn function is enabled
+    uint256 public totalBurnedFromPools = 0;
+
     // Info of each pool.
     PoolInfo[] public poolInfo;
     mapping(address => uint256) public poolId1; // poolId1 count from 1, subtraction 1 before using with poolInfo
@@ -104,20 +107,11 @@ contract MasterBreeder is Ownable, Authorizable, ReentrancyGuard {
 
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
-    event EmergencyWithdraw(
-        address indexed user,
-        uint256 indexed pid,
-        uint256 amount
-    );
-    event SendGovernanceTokenReward(
-        address indexed user,
-        uint256 indexed pid,
-        uint256 amount,
-        uint256 lockAmount
-    );
+    event EmergencyWithdraw(address indexed user, uint256 indexed pid, uint256 amount);
+    event SendGovernanceTokenReward(address indexed user, uint256 indexed pid, uint256 amount, uint256 lockAmount);
 
     modifier nonDuplicated(IERC20 _lpToken) {
-        require(poolExistence[_lpToken] == false, "MasterBreeder::nonDuplicated: duplicated");
+        require(poolExistence[_lpToken] == false, 'MasterSonicer::nonDuplicated: duplicated');
         _;
     }
 
@@ -153,12 +147,10 @@ contract MasterBreeder is Ownable, Authorizable, ReentrancyGuard {
         userFeeStage = _userFeeStage;
         devFeeStage = _devFeeStage;
         for (uint256 i = 0; i < REWARD_MULTIPLIER.length - 1; i++) {
-            uint256 halvingAtBlock = _halvingAfterBlock.mul(i+1).add(_startBlock).add(1);
+            uint256 halvingAtBlock = _halvingAfterBlock.mul(i + 1).add(_startBlock).add(1);
             HALVING_AT_BLOCK.push(halvingAtBlock);
         }
-        FINISH_BONUS_AT_BLOCK = _halvingAfterBlock
-            .mul(REWARD_MULTIPLIER.length - 1)
-            .add(_startBlock);
+        FINISH_BONUS_AT_BLOCK = _halvingAfterBlock.mul(REWARD_MULTIPLIER.length - 1).add(_startBlock);
         HALVING_AT_BLOCK.push(uint256(-1));
     }
 
@@ -172,15 +164,11 @@ contract MasterBreeder is Ownable, Authorizable, ReentrancyGuard {
         IERC20 _lpToken,
         bool _withUpdate
     ) public onlyOwner nonDuplicated(_lpToken) {
-        require(
-            poolId1[address(_lpToken)] == 0,
-            "MasterBreeder::add: lp is already in pool"
-        );
+        require(poolId1[address(_lpToken)] == 0, 'MasterSonicer::add: lp is already in pool');
         if (_withUpdate) {
             massUpdatePools();
         }
-        uint256 lastRewardBlock =
-            block.number > START_BLOCK ? block.number : START_BLOCK;
+        uint256 lastRewardBlock = block.number > START_BLOCK ? block.number : START_BLOCK;
         totalAllocPoint = totalAllocPoint.add(_allocPoint);
         poolId1[address(_lpToken)] = poolInfo.length + 1;
         poolExistence[_lpToken] = true;
@@ -203,9 +191,7 @@ contract MasterBreeder is Ownable, Authorizable, ReentrancyGuard {
         if (_withUpdate) {
             massUpdatePools();
         }
-        totalAllocPoint = totalAllocPoint.sub(poolInfo[_pid].allocPoint).add(
-            _allocPoint
-        );
+        totalAllocPoint = totalAllocPoint.sub(poolInfo[_pid].allocPoint).add(_allocPoint);
         poolInfo[_pid].allocPoint = _allocPoint;
     }
 
@@ -233,17 +219,15 @@ contract MasterBreeder is Ownable, Authorizable, ReentrancyGuard {
         uint256 GovTokenForLP;
         uint256 GovTokenForCom;
         uint256 GovTokenForFounders;
-        (
-            GovTokenForDev,
-            GovTokenForFarmer,
-            GovTokenForLP,
-            GovTokenForCom,
-            GovTokenForFounders
-        ) = getPoolReward(pool.lastRewardBlock, block.number, pool.allocPoint);
-        govToken.mint(address(this), GovTokenForFarmer);
-        pool.accGovTokenPerShare = pool.accGovTokenPerShare.add(
-            GovTokenForFarmer.mul(1e12).div(lpSupply)
+        (GovTokenForDev, GovTokenForFarmer, GovTokenForLP, GovTokenForCom, GovTokenForFounders) = getPoolReward(
+            pool.lastRewardBlock,
+            block.number,
+            pool.allocPoint
         );
+
+        govToken.mint(address(this), GovTokenForFarmer);
+
+        pool.accGovTokenPerShare = pool.accGovTokenPerShare.add(GovTokenForFarmer.mul(1e12).div(lpSupply));
         pool.lastRewardBlock = block.number;
         if (GovTokenForDev > 0) {
             govToken.mint(address(devaddr), GovTokenForDev);
@@ -278,17 +262,13 @@ contract MasterBreeder is Ownable, Authorizable, ReentrancyGuard {
     // |--------------------------------------|
     // [20, 30, 40, 50, 60, 70, 80, 99999999]
     // Return reward multiplier over the given _from to _to block.
-    function getMultiplier(uint256 _from, uint256 _to)
-        public
-        view
-        returns (uint256)
-    {
+    function getMultiplier(uint256 _from, uint256 _to) public view returns (uint256) {
         uint256 result = 0;
         if (_from < START_BLOCK) return 0;
 
         for (uint256 i = 0; i < HALVING_AT_BLOCK.length; i++) {
             uint256 endBlock = HALVING_AT_BLOCK[i];
-            if (i > REWARD_MULTIPLIER.length-1) return 0;
+            if (i > REWARD_MULTIPLIER.length - 1) return 0;
 
             if (_to <= endBlock) {
                 uint256 m = _to.sub(_from).mul(REWARD_MULTIPLIER[i]);
@@ -321,10 +301,7 @@ contract MasterBreeder is Ownable, Authorizable, ReentrancyGuard {
         )
     {
         uint256 multiplier = getMultiplier(_from, _to);
-        uint256 amount =
-            multiplier.mul(REWARD_PER_BLOCK).mul(_allocPoint).div(
-                totalAllocPoint
-            );
+        uint256 amount = multiplier.mul(REWARD_PER_BLOCK).mul(_allocPoint).div(totalAllocPoint);
         uint256 GovernanceTokenCanMint = govToken.cap().sub(govToken.totalSupply());
 
         if (GovernanceTokenCanMint < amount) {
@@ -343,32 +320,22 @@ contract MasterBreeder is Ownable, Authorizable, ReentrancyGuard {
     }
 
     // View function to see pending GovernanceTokens on frontend.
-    function pendingReward(uint256 _pid, address _user)
-        external
-        view
-        returns (uint256)
-    {
+    function pendingReward(uint256 _pid, address _user) external view returns (uint256) {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_user];
         uint256 accGovTokenPerShare = pool.accGovTokenPerShare;
         uint256 lpSupply = pool.lpToken.balanceOf(address(this));
         if (block.number > pool.lastRewardBlock && lpSupply > 0) {
             uint256 GovTokenForFarmer;
-            (, GovTokenForFarmer, , , ) = getPoolReward(
-                pool.lastRewardBlock,
-                block.number,
-                pool.allocPoint
-            );
-            accGovTokenPerShare = accGovTokenPerShare.add(
-                GovTokenForFarmer.mul(1e12).div(lpSupply)
-            );
+            (, GovTokenForFarmer, , , ) = getPoolReward(pool.lastRewardBlock, block.number, pool.allocPoint);
+            accGovTokenPerShare = accGovTokenPerShare.add(GovTokenForFarmer.mul(1e12).div(lpSupply));
         }
         return user.amount.mul(accGovTokenPerShare).div(1e12).sub(user.rewardDebt);
     }
 
     function claimRewards(uint256[] memory _pids) public {
         for (uint256 i = 0; i < _pids.length; i++) {
-          claimReward(_pids[i]);
+            claimReward(_pids[i]);
         }
     }
 
@@ -377,16 +344,13 @@ contract MasterBreeder is Ownable, Authorizable, ReentrancyGuard {
         _harvest(_pid);
     }
 
-    // lock 95% of reward if it comes from bonus time
+    // lock 90% of reward if it comes from bonus time
     function _harvest(uint256 _pid) internal {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
 
         if (user.amount > 0) {
-            uint256 pending =
-                user.amount.mul(pool.accGovTokenPerShare).div(1e12).sub(
-                    user.rewardDebt
-                );
+            uint256 pending = user.amount.mul(pool.accGovTokenPerShare).div(1e12).sub(user.rewardDebt);
             uint256 masterBal = govToken.balanceOf(address(this));
 
             if (pending > masterBal) {
@@ -394,12 +358,34 @@ contract MasterBreeder is Ownable, Authorizable, ReentrancyGuard {
             }
 
             if (pending > 0) {
+                uint256 _burn_percent;
+
+                if (isPoolBurnEnabled && pending > 1e18) {
+                    // arithmetic progression for determining burn amount.
+                    // 1% per 1k until 10k   5% per 10k ultil 100k
+                    if (pending <= 1e21) {
+                      _burn_percent = 1;
+                    } else if (pending > 1e21 && pending <= 1e22) {
+                         _burn_percent = 1 + (1 * ((pending.div(1e21)) - 1));
+                        }
+                     else if (pending > 1e22 && pending <= 1e23) {
+                        _burn_percent = 10 + (5 * ((pending.div(1e22)) - 1));
+                    } else {
+                        _burn_percent = 55;
+                    }
+                  
+
+                    uint256 _toburn = pending.mul(_burn_percent).div(100);
+                    pending = pending.sub(_toburn);
+                    govToken.burn(_toburn);
+                    totalBurnedFromPools = totalBurnedFromPools.add(_toburn);
+                }
+
                 govToken.transfer(msg.sender, pending);
+
                 uint256 lockAmount = 0;
                 if (user.rewardDebtAtBlock <= FINISH_BONUS_AT_BLOCK) {
-                    lockAmount = pending.mul(PERCENT_LOCK_BONUS_REWARD).div(
-                        100
-                    );
+                    lockAmount = pending.mul(PERCENT_LOCK_BONUS_REWARD).div(100);
                     govToken.lock(msg.sender, lockAmount);
                 }
 
@@ -427,26 +413,19 @@ contract MasterBreeder is Ownable, Authorizable, ReentrancyGuard {
         return current.totalReferals;
     }
 
-    function getRefValueOf(address _user, address _user2)
-        public
-        view
-        returns (uint256)
-    {
+    function getRefValueOf(address _user, address _user2) public view returns (uint256) {
         UserGlobalInfo storage current = userGlobalInfo[_user];
         uint256 a = current.referrals[_user2];
         return a;
     }
 
-    // Deposit LP tokens to MasterBreeder for GovernanceToken allocation.
+    // Deposit LP tokens to MasterSonicer for GovernanceToken allocation.
     function deposit(
         uint256 _pid,
         uint256 _amount,
         address _ref
     ) public nonReentrant {
-        require(
-            _amount > 0,
-            "MasterBreeder::deposit: amount must be greater than 0"
-        );
+        require(_amount > 0, 'MasterSonicer::deposit: amount must be greater than 0');
 
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
@@ -463,27 +442,17 @@ contract MasterBreeder is Ownable, Authorizable, ReentrancyGuard {
             refer.globalRefAmount = refer.globalRefAmount + _amount;
         }
 
-        current.globalAmount =
-            current.globalAmount +
-            _amount.mul(userDepFee).div(100);
+        current.globalAmount = current.globalAmount + _amount.mul(userDepFee).div(100);
 
         updatePool(_pid);
         _harvest(_pid);
-        pool.lpToken.safeTransferFrom(
-            address(msg.sender),
-            address(this),
-            _amount
-        );
+        pool.lpToken.safeTransferFrom(address(msg.sender), address(this), _amount);
         if (user.amount == 0) {
             user.rewardDebtAtBlock = block.number;
         }
-        user.amount = user.amount.add(
-            _amount.sub(_amount.mul(userDepFee).div(10000))
-        );
+        user.amount = user.amount.add(_amount.sub(_amount.mul(userDepFee).div(10000)));
         user.rewardDebt = user.amount.mul(pool.accGovTokenPerShare).div(1e12);
-        devr.amount = devr.amount.add(
-            _amount.sub(_amount.mul(devDepFee).div(10000))
-        );
+        devr.amount = devr.amount.add(_amount.sub(_amount.mul(devDepFee).div(10000)));
         devr.rewardDebt = devr.amount.mul(pool.accGovTokenPerShare).div(1e12);
         emit Deposit(msg.sender, _pid, _amount);
         if (user.firstDepositBlock > 0) {} else {
@@ -492,7 +461,7 @@ contract MasterBreeder is Ownable, Authorizable, ReentrancyGuard {
         user.lastDepositBlock = block.number;
     }
 
-    // Withdraw LP tokens from MasterBreeder.
+    // Withdraw LP tokens from MasterSonicer.
     function withdraw(
         uint256 _pid,
         uint256 _amount,
@@ -502,7 +471,7 @@ contract MasterBreeder is Ownable, Authorizable, ReentrancyGuard {
         UserInfo storage user = userInfo[_pid][msg.sender];
         UserGlobalInfo storage refer = userGlobalInfo[_ref];
         UserGlobalInfo storage current = userGlobalInfo[msg.sender];
-        require(user.amount >= _amount, "MasterBreeder::withdraw: not good");
+        require(user.amount >= _amount, 'MasterSonicer::withdraw: not good');
         if (_ref != address(0)) {
             refer.referrals[msg.sender] = refer.referrals[msg.sender] - _amount;
             refer.globalRefAmount = refer.globalRefAmount - _amount;
@@ -519,107 +488,38 @@ contract MasterBreeder is Ownable, Authorizable, ReentrancyGuard {
             } else {
                 user.blockdelta = block.number - user.firstDepositBlock;
             }
-            if (
-                user.blockdelta == blockDeltaStartStage[0] ||
-                block.number == user.lastDepositBlock
-            ) {
+            if (user.blockdelta == blockDeltaStartStage[0] || block.number == user.lastDepositBlock) {
                 //25% fee for withdrawals of LP tokens in the same block this is to prevent abuse from flashloans
-                pool.lpToken.safeTransfer(
-                    address(msg.sender),
-                    _amount.mul(userFeeStage[0]).div(100)
-                );
-                pool.lpToken.safeTransfer(
-                    address(devaddr),
-                    _amount.mul(devFeeStage[0]).div(100)
-                );
-            } else if (
-                user.blockdelta >= blockDeltaStartStage[1] &&
-                user.blockdelta <= blockDeltaEndStage[0]
-            ) {
+                pool.lpToken.safeTransfer(address(msg.sender), _amount.mul(userFeeStage[0]).div(100));
+                pool.lpToken.safeTransfer(address(devaddr), _amount.mul(devFeeStage[0]).div(100));
+            } else if (user.blockdelta >= blockDeltaStartStage[1] && user.blockdelta <= blockDeltaEndStage[0]) {
                 //8% fee if a user deposits and withdraws in between same block and 59 minutes.
-                pool.lpToken.safeTransfer(
-                    address(msg.sender),
-                    _amount.mul(userFeeStage[1]).div(100)
-                );
-                pool.lpToken.safeTransfer(
-                    address(devaddr),
-                    _amount.mul(devFeeStage[1]).div(100)
-                );
-            } else if (
-                user.blockdelta >= blockDeltaStartStage[2] &&
-                user.blockdelta <= blockDeltaEndStage[1]
-            ) {
+                pool.lpToken.safeTransfer(address(msg.sender), _amount.mul(userFeeStage[1]).div(100));
+                pool.lpToken.safeTransfer(address(devaddr), _amount.mul(devFeeStage[1]).div(100));
+            } else if (user.blockdelta >= blockDeltaStartStage[2] && user.blockdelta <= blockDeltaEndStage[1]) {
                 //4% fee if a user deposits and withdraws after 1 hour but before 1 day.
-                pool.lpToken.safeTransfer(
-                    address(msg.sender),
-                    _amount.mul(userFeeStage[2]).div(100)
-                );
-                pool.lpToken.safeTransfer(
-                    address(devaddr),
-                    _amount.mul(devFeeStage[2]).div(100)
-                );
-            } else if (
-                user.blockdelta >= blockDeltaStartStage[3] &&
-                user.blockdelta <= blockDeltaEndStage[2]
-            ) {
+                pool.lpToken.safeTransfer(address(msg.sender), _amount.mul(userFeeStage[2]).div(100));
+                pool.lpToken.safeTransfer(address(devaddr), _amount.mul(devFeeStage[2]).div(100));
+            } else if (user.blockdelta >= blockDeltaStartStage[3] && user.blockdelta <= blockDeltaEndStage[2]) {
                 //2% fee if a user deposits and withdraws between after 1 day but before 3 days.
-                pool.lpToken.safeTransfer(
-                    address(msg.sender),
-                    _amount.mul(userFeeStage[3]).div(100)
-                );
-                pool.lpToken.safeTransfer(
-                    address(devaddr),
-                    _amount.mul(devFeeStage[3]).div(100)
-                );
-            } else if (
-                user.blockdelta >= blockDeltaStartStage[4] &&
-                user.blockdelta <= blockDeltaEndStage[3]
-            ) {
+                pool.lpToken.safeTransfer(address(msg.sender), _amount.mul(userFeeStage[3]).div(100));
+                pool.lpToken.safeTransfer(address(devaddr), _amount.mul(devFeeStage[3]).div(100));
+            } else if (user.blockdelta >= blockDeltaStartStage[4] && user.blockdelta <= blockDeltaEndStage[3]) {
                 //1% fee if a user deposits and withdraws after 3 days but before 5 days.
-                pool.lpToken.safeTransfer(
-                    address(msg.sender),
-                    _amount.mul(userFeeStage[4]).div(100)
-                );
-                pool.lpToken.safeTransfer(
-                    address(devaddr),
-                    _amount.mul(devFeeStage[4]).div(100)
-                );
-            } else if (
-                user.blockdelta >= blockDeltaStartStage[5] &&
-                user.blockdelta <= blockDeltaEndStage[4]
-            ) {
+                pool.lpToken.safeTransfer(address(msg.sender), _amount.mul(userFeeStage[4]).div(100));
+                pool.lpToken.safeTransfer(address(devaddr), _amount.mul(devFeeStage[4]).div(100));
+            } else if (user.blockdelta >= blockDeltaStartStage[5] && user.blockdelta <= blockDeltaEndStage[4]) {
                 //0.5% fee if a user deposits and withdraws if the user withdraws after 5 days but before 2 weeks.
-                pool.lpToken.safeTransfer(
-                    address(msg.sender),
-                    _amount.mul(userFeeStage[5]).div(1000)
-                );
-                pool.lpToken.safeTransfer(
-                    address(devaddr),
-                    _amount.mul(devFeeStage[5]).div(1000)
-                );
-            } else if (
-                user.blockdelta >= blockDeltaStartStage[6] &&
-                user.blockdelta <= blockDeltaEndStage[5]
-            ) {
+                pool.lpToken.safeTransfer(address(msg.sender), _amount.mul(userFeeStage[5]).div(1000));
+                pool.lpToken.safeTransfer(address(devaddr), _amount.mul(devFeeStage[5]).div(1000));
+            } else if (user.blockdelta >= blockDeltaStartStage[6] && user.blockdelta <= blockDeltaEndStage[5]) {
                 //0.25% fee if a user deposits and withdraws after 2 weeks.
-                pool.lpToken.safeTransfer(
-                    address(msg.sender),
-                    _amount.mul(userFeeStage[6]).div(10000)
-                );
-                pool.lpToken.safeTransfer(
-                    address(devaddr),
-                    _amount.mul(devFeeStage[6]).div(10000)
-                );
+                pool.lpToken.safeTransfer(address(msg.sender), _amount.mul(userFeeStage[6]).div(10000));
+                pool.lpToken.safeTransfer(address(devaddr), _amount.mul(devFeeStage[6]).div(10000));
             } else if (user.blockdelta > blockDeltaStartStage[7]) {
                 //0.1% fee if a user deposits and withdraws after 4 weeks.
-                pool.lpToken.safeTransfer(
-                    address(msg.sender),
-                    _amount.mul(userFeeStage[7]).div(10000)
-                );
-                pool.lpToken.safeTransfer(
-                    address(devaddr),
-                    _amount.mul(devFeeStage[7]).div(10000)
-                );
+                pool.lpToken.safeTransfer(address(msg.sender), _amount.mul(userFeeStage[7]).div(10000));
+                pool.lpToken.safeTransfer(address(devaddr), _amount.mul(devFeeStage[7]).div(10000));
             }
             user.rewardDebt = user.amount.mul(pool.accGovTokenPerShare).div(1e12);
             emit Withdraw(msg.sender, _pid, _amount);
@@ -650,7 +550,7 @@ contract MasterBreeder is Ownable, Authorizable, ReentrancyGuard {
         } else {
             transferSuccess = govToken.transfer(_to, _amount);
         }
-        require(transferSuccess, "MasterBreeder::safeGovTokenTransfer: transfer failed");
+        require(transferSuccess, 'MasterSonicer::safeGovTokenTransfer: transfer failed');
     }
 
     // Update dev address by the previous dev.
@@ -689,10 +589,7 @@ contract MasterBreeder is Ownable, Authorizable, ReentrancyGuard {
     }
 
     // Update Rewards Mulitplier Array
-    function rewardMulUpdate(uint256[] memory _newMulReward)
-        public
-        onlyAuthorized
-    {
+    function rewardMulUpdate(uint256[] memory _newMulReward) public onlyAuthorized {
         REWARD_MULTIPLIER = _newMulReward;
     }
 
@@ -721,6 +618,10 @@ contract MasterBreeder is Ownable, Authorizable, ReentrancyGuard {
         PERCENT_FOR_FOUNDERS = _newfounderlock;
     }
 
+    function poolBurnEnabled(bool _onoff) public onlyAuthorized {
+        isPoolBurnEnabled = _onoff;
+    }
+
     // Update START_BLOCK
     function starblockUpdate(uint256 _newstarblock) public onlyAuthorized {
         START_BLOCK = _newstarblock;
@@ -731,11 +632,7 @@ contract MasterBreeder is Ownable, Authorizable, ReentrancyGuard {
         if (pid1 == 0) {
             return multiplier.mul(REWARD_PER_BLOCK);
         } else {
-            return
-                multiplier
-                    .mul(REWARD_PER_BLOCK)
-                    .mul(poolInfo[pid1 - 1].allocPoint)
-                    .div(totalAllocPoint);
+            return multiplier.mul(REWARD_PER_BLOCK).mul(poolInfo[pid1 - 1].allocPoint).div(totalAllocPoint);
         }
     }
 
@@ -754,7 +651,7 @@ contract MasterBreeder is Ownable, Authorizable, ReentrancyGuard {
         uint256 _pid,
         address _user,
         uint256 _block
-    ) public onlyAuthorized() {
+    ) public onlyAuthorized {
         UserInfo storage user = userInfo[_pid][_user];
         user.lastWithdrawBlock = _block;
     }
@@ -763,42 +660,33 @@ contract MasterBreeder is Ownable, Authorizable, ReentrancyGuard {
         uint256 _pid,
         address _user,
         uint256 _block
-    ) public onlyAuthorized() {
+    ) public onlyAuthorized {
         UserInfo storage user = userInfo[_pid][_user];
         user.firstDepositBlock = _block;
     }
 
-    function setStageStarts(uint256[] memory _blockStarts)
-        public
-        onlyAuthorized()
-    {
+    function setStageStarts(uint256[] memory _blockStarts) public onlyAuthorized {
         blockDeltaStartStage = _blockStarts;
     }
 
-    function setStageEnds(uint256[] memory _blockEnds) public onlyAuthorized() {
+    function setStageEnds(uint256[] memory _blockEnds) public onlyAuthorized {
         blockDeltaEndStage = _blockEnds;
     }
 
-    function setUserFeeStage(uint256[] memory _userFees)
-        public
-        onlyAuthorized()
-    {
+    function setUserFeeStage(uint256[] memory _userFees) public onlyAuthorized {
         userFeeStage = _userFees;
     }
 
-    function setDevFeeStage(uint256[] memory _devFees) public onlyAuthorized() {
+    function setDevFeeStage(uint256[] memory _devFees) public onlyAuthorized {
         devFeeStage = _devFees;
     }
 
-    function setDevDepFee(uint256 _devDepFees) public onlyAuthorized() {
+    function setDevDepFee(uint256 _devDepFees) public onlyAuthorized {
         devDepFee = _devDepFees;
     }
 
-    function setUserDepFee(uint256 _usrDepFees) public onlyAuthorized() {
+    function setUserDepFee(uint256 _usrDepFees) public onlyAuthorized {
         userDepFee = _usrDepFees;
     }
 
-    function reclaimTokenOwnership(address _newOwner) public onlyAuthorized() {
-        govToken.transferOwnership(_newOwner);
-    }
 }
