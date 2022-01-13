@@ -17,7 +17,7 @@ import './Authorizable.sol';
 // will be transferred to a governance smart contract once GovernanceToken is sufficiently
 // distributed and the community can show to govern itself.
 //
-contract MasterSonicer is Ownable, Authorizable, ReentrancyGuard {
+contract KingKanna is Ownable, Authorizable, ReentrancyGuard {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -164,7 +164,7 @@ contract MasterSonicer is Ownable, Authorizable, ReentrancyGuard {
         IERC20 _lpToken,
         bool _withUpdate
     ) public onlyOwner nonDuplicated(_lpToken) {
-        require(poolId1[address(_lpToken)] == 0, 'MasterSonicer::add: lp is already in pool');
+        require(poolId1[address(_lpToken)] == 0, 'KingKanna::add: lp is already in pool');
         if (_withUpdate) {
             massUpdatePools();
         }
@@ -419,13 +419,13 @@ contract MasterSonicer is Ownable, Authorizable, ReentrancyGuard {
         return a;
     }
 
-    // Deposit LP tokens to MasterSonicer for GovernanceToken allocation.
+    // Deposit LP tokens to KingKanna for GovernanceToken allocation.
     function deposit(
         uint256 _pid,
         uint256 _amount,
         address _ref
     ) public nonReentrant {
-        require(_amount > 0, 'MasterSonicer::deposit: amount must be greater than 0');
+        require(_amount > 0, 'KingKanna::deposit: amount must be greater than 0');
 
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
@@ -461,7 +461,7 @@ contract MasterSonicer is Ownable, Authorizable, ReentrancyGuard {
         user.lastDepositBlock = block.number;
     }
 
-    // Withdraw LP tokens from MasterSonicer.
+    // Withdraw LP tokens from KingKanna.
     function withdraw(
         uint256 _pid,
         uint256 _amount,
@@ -471,7 +471,7 @@ contract MasterSonicer is Ownable, Authorizable, ReentrancyGuard {
         UserInfo storage user = userInfo[_pid][msg.sender];
         UserGlobalInfo storage refer = userGlobalInfo[_ref];
         UserGlobalInfo storage current = userGlobalInfo[msg.sender];
-        require(user.amount >= _amount, 'MasterSonicer::withdraw: not good');
+        require(user.amount >= _amount, 'KingKanna::withdraw: not good');
         if (_ref != address(0)) {
             refer.referrals[msg.sender] = refer.referrals[msg.sender] - _amount;
             refer.globalRefAmount = refer.globalRefAmount - _amount;
@@ -550,7 +550,7 @@ contract MasterSonicer is Ownable, Authorizable, ReentrancyGuard {
         } else {
             transferSuccess = govToken.transfer(_to, _amount);
         }
-        require(transferSuccess, 'MasterSonicer::safeGovTokenTransfer: transfer failed');
+        require(transferSuccess, 'KingKanna::safeGovTokenTransfer: transfer failed');
     }
 
     // Update dev address by the previous dev.
