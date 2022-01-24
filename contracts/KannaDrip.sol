@@ -15,7 +15,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 // by trading tokens collected from fees for GovernanceToken.
 
 // T1 - T4: OK
-contract xKanna is Ownable {
+contract KannaDrip is Ownable {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -74,7 +74,7 @@ contract xKanna is Ownable {
         // Checks
         require(
             token != govToken && token != weth && token != bridge,
-            "xKanna: Invalid bridge"
+            "KannaDrip: Invalid bridge"
         );
 
         // Effects
@@ -87,7 +87,7 @@ contract xKanna is Ownable {
     // C6: It's not a fool proof solution, but it prevents flash loans, so here it's ok to use tx.origin
     modifier onlyEOA() {
         // Try to make flash-loan exploit harder to do by only allowing externally owned addresses.
-        require(msg.sender == tx.origin, "xKanna: must use EOA");
+        require(msg.sender == tx.origin, "KannaDrip: must use EOA");
         _;
     }
 
@@ -121,7 +121,7 @@ contract xKanna is Ownable {
         // Interactions
         // S1 - S4: OK
         IUniswapV2Pair pair = IUniswapV2Pair(factory.getPair(token0, token1));
-        require(address(pair) != address(0), "xKanna: Invalid pair");
+        require(address(pair) != address(0), "KannaDrip: Invalid pair");
         // balanceOf: S1 - S4: OK
         // transfer: X1 - X5: OK
         IERC20(address(pair)).safeTransfer(
@@ -229,7 +229,7 @@ contract xKanna is Ownable {
         // X1 - X5: OK
         IUniswapV2Pair pair =
             IUniswapV2Pair(factory.getPair(fromToken, toToken));
-        require(address(pair) != address(0), "xKanna: Cannot convert");
+        require(address(pair) != address(0), "KannaDrip: Cannot convert");
 
         // Interactions
         // X1 - X5: OK
