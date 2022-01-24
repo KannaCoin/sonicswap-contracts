@@ -6,14 +6,14 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
-// The Missions is a mission full of rewards and treasure.
-// The longer you stay, the more sonic you end up with when you leave.
+// The KannaMissions is a mission full of rewards and treasure.
+// The longer you stay, the more kanna you end up with when you leave.
 // This contract handles swapping to and from xGovernanceToken <> GovernanceToken
-contract Missions is ERC20 {
+contract KannaMissions is ERC20 {
     using SafeMath for uint256;
     IERC20 public govToken;
 
-    // Define the Missions token contract
+    // Define the KannaMissions token contract
     constructor(
       string memory _name,
       string memory _symbol,
